@@ -16,7 +16,7 @@ function encryptCashPass(plain) {
   if (!/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{4,8}$/.test(p)) {
     throw new Error('ePrepayPass(평문)는 영문+숫자 4~8자여야 합니다.');
   }
-  return _encrypt(p);
+  return p;
 }
 
 /* ② 열람용 비번 (숫자 4자리) */
