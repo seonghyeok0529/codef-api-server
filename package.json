@@ -1,0 +1,27 @@
+{
+  "name": "codef-api-server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seonghyeok0529/codef-api-server.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/seonghyeok0529/codef-api-server/issues"
+  },
+  "homepage": "https://github.com/seonghyeok0529/codef-api-server#readme",
+  "description": "",
+  "dependencies": {
+    "axios": "^1.10.0",
+    "dotenv": "^17.0.0",
+    "express": "^5.1.0",
+    "node-rsa": "^1.1.1",
+    "qs": "^6.14.0"
+  }
+}
