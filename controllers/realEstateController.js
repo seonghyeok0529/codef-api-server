@@ -6,6 +6,8 @@
 //   3) CODEF 요청              → CF-xxxx 응답 pass-through
 //   4) 콘솔에 SUCCESS / ERROR  로그
 // ───────────────────────────────────────────────────────────
+const fs = require('fs');
+const path = require('path');
 
 const {
     getAccessToken,
@@ -45,6 +47,7 @@ const {
         ePrepayNo           : ePrepayNo,
         ePrepayPass         : encPrepayPass,
         issueType           : '1',
+        originDataYN        : '1',
   
         // 주소·옵션 그대로 전달
         inquiryType         : req.body.inquiryType,
@@ -63,7 +66,13 @@ const {
       const response = await requestRegisterAPI(token, payload);
   
       console.log('[CODEF SUCCESS]', JSON.stringify(response.data, null, 2));
-      return res.json(response.data);        // CF-00000 등 성공 응답
+      return res.json({
+        code: 'SUCCESS',
+        message: '등기부등본 발급 성공',
+        pdfBase64: response.data?.resOriGinalData || null,
+        raw: response.data
+      });
+              // CF-00000 등 성공 응답
   
     } catch (err) {
       // CODEF 실패 or 네트워크 오류
