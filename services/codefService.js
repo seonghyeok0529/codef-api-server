@@ -43,8 +43,7 @@ exports.requestRegisterAPI = async (token, payload) => {
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json'
-      },
-      timeout: 10000
+      }
     }
   );
 };
