@@ -45,92 +45,56 @@
   <div id="result"></div>
 
   <script>
-    /* ---------------- 공통 유틸 ---------------- */
-    const clean = s => (s || '').replace(/\+/g,' ').replace(/&/g,'').trim();
+    async function submitRequest() {
+      const v = id => document.getElementById(id).value.trim();
+      const box = document.getElementById('result');
+      box.innerHTML = '<p class="loading">⏳ 조회 중…</p>';
     
-    /* ❶ 어떤 형태든 파싱 */
-    function safeParse(raw){
-      let str = raw.trim();
-    
-      /* 1) URL 인코딩 돼 있나? → 한 번 디코드 */
-      try{ str = decodeURIComponent(str); }catch(_){}
-    
-      /* 2) 겉따옴표가 1쌍 이상 감싸면 제거 */
-      while(str.startsWith('"') && str.endsWith('"')) str = str.slice(1,-1);
-    
-      /* 3) JSON 파싱 */
-      return JSON.parse(str);
-    }
-    
-    /* ❷ 예쁘게 렌더 (항목 없으면 메시지) */
-    function renderPretty(json){
-      const code    = json?.result?.code   || '???';
-      const message = json?.result?.message|| '결과코드 없음';
-    
-      let html = `<h3>📄 등기부등본 (code ${code})</h3><p>${message}</p>`;
-    
-      /* 등기부 본문 탐색 */
-      const entries =
-        json?.data?.resRegisterEntriesList?.[0]?.resRegistrationHisList ||
-        json?.data?.resRegistrationHisList                             ||      // 혹시 바로 들어있는 경우
-        [];
-    
-      if(!entries.length){
-        html += '<p style="color:#d00;font-weight:600">※ 조회결과가 없습니다.</p>';
-        return html;
-      }
-    
-      /* 카드 + 토글 */
-      entries.forEach(sec=>{
-        const title = clean(sec.resType);
-        const sub   = clean(sec.resType1);
-        html += `<details class="card" open>
-                   <summary>${title}${sub?' – '+sub:''}</summary><ul>`;
-        (sec.resContentsList||[]).forEach(g=>{
-          (g.resDetailList||[]).forEach(d=>{
-            if(d.resNumber==='0') return;           // 머릿글 skip
-            html += `<li>${clean(d.resContents).replace(/\n/g,'<br/>')}</li>`;
-          });
-        });
-        html += '</ul></details>';
-      });
-      return html;
-    }
-    
-    /* ❸ 메인 (주소 입력 → API 호출) */
-    const API_ENDPOINT = 'http://3.106.58.155:3000/real-estate/register-status'; // 바뀌면 수정
-    const FIXED = { password:'1234', ePrepayPass:'a123', ePrepayNo:'K33460728689',
-                    phoneNo:'01030012452', inquiryType:'3', realtyType:'1' };
-    
-    async function submitRequest(){
-      const v=id=>document.getElementById(id).value.trim();
-      const box=document.getElementById('result');
-      box.innerHTML='<p class="loading">⏳ 조회 중…</p>';
-    
-      const body={...FIXED,
-        addr_sido:v('addr_sido'), addr_sigungu:v('addr_sigungu'),
-        addr_roadName:v('addr_roadName'), addr_buildingNumber:v('addr_buildingNumber'),
-        dong:v('dong'), ho:v('ho')
+      const body = {
+        ...FIXED,
+        addr_sido: v('addr_sido'),
+        addr_sigungu: v('addr_sigungu'),
+        addr_roadName: v('addr_roadName'),
+        addr_buildingNumber: v('addr_buildingNumber'),
+        dong: v('dong'),
+        ho: v('ho')
       };
     
-      try{
-        const res  = await fetch(API_ENDPOINT,{
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify(body)
+      try {
+        const res = await fetch(API_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
         });
-        const raw  = await res.text();
-        const json = safeParse(raw);
     
-        console.log('★ RAW', raw);   // 디버깅용
-        console.log('★ JSON', json); // 디버깅용
+        const result = await res.json();
     
-        box.innerHTML = renderPretty(json);
+        if (result?.pdfBase64) {
+          // Base64 → Blob → ObjectURL
+          const byteCharacters = atob(result.pdfBase64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'application/pdf' });
+          const blobUrl = URL.createObjectURL(blob);
     
-      }catch(e){
-        box.innerHTML = `<p class="error">🚨 네트워크/파싱 오류: ${e.message}</p>`;
+          box.innerHTML = `
+            <p>📄 등기부등본 원문(PDF)이 준비되었습니다.</p>
+            <a href="${blobUrl}" target="_blank" class="btn">🔍 새 창으로 열기</a>
+            <a href="${blobUrl}" download="등기부등본.pdf" class="btn">📥 PDF 다운로드</a>
+          `;
+        } else {
+          box.innerHTML = `<p class="error">🚨 PDF 데이터가 없습니다.</p>`;
+        }
+    
+      } catch (e) {
+        box.innerHTML = `<p class="error">🚨 네트워크 오류: ${e.message}</p>`;
       }
     }
     </script>
+    
     
 </body>
 </html>
