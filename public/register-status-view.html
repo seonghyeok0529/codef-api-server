@@ -1,100 +1,85 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>등기부등본 간편 조회</title>
+<!-- 🖨️ 결과 -->
+<div id="result"></div>
 
-  <!-- 🌈 심플 테마 + 카드/토글 UI -->
-  <style>
-    body{font-family:system-ui,"Noto Sans KR",sans-serif;
-         margin:40px auto;max-width:760px;background:#fafafa;color:#333}
-    h2{text-align:center}
-    label{font-weight:600}
-    input{width:100%;padding:8px;border:1px solid #ccc;
-          border-radius:6px;margin-top:4px}
-    button{margin-top:12px;padding:10px 18px;font-weight:700;
-           background:#0066cc;color:#fff;border:none;border-radius:6px;
-           cursor:pointer}
-    button:hover{background:#0052a3}
-    .card{background:#fff;border-radius:8px;box-shadow:0 2px 6px #0001;
-          padding:20px;margin-top:24px}
-    summary{font-weight:700;font-size:1.05em;cursor:pointer;color:#0066cc}
-    summary::-webkit-details-marker{display:none}
-    ul{margin:8px 0 0 20px;padding:0}
-    li{line-height:1.5em;margin-bottom:6px}
-    .loading{font-style:italic;color:#777}
-    .error{color:#d00;font-weight:600}
-  </style>
-</head>
-<body>
-  <h2>🏠 등기부등본 주소 조회</h2>
+<script>
+  const API_ENDPOINT = 'http://3.106.58.155:3000/real-estate/register-status'; // ← 필요 시 변경
+  const FIXED = {
+    password   : '1234',
+    ePrepayPass: 'a123',
+    ePrepayNo  : 'K33460728689',
+    phoneNo    : '01030012452',
+    inquiryType: '3',
+    realtyType : '1'
+  };
+  const clean = s => s.replace(/\+/g,' ').replace(/&/g,'').trim();
 
-  <!-- 📮 주소 입력 폼 -->
-  <div class="card">
-    <label>시도</label><input id="addr_sido" placeholder="예: 울산광역시">
-    <label>시군구</label><input id="addr_sigungu" placeholder="예: 남구">
-    <label>도로명</label><input id="addr_roadName" placeholder="예: 동산로69번길">
-    <label>건물번호</label><input id="addr_buildingNumber" placeholder="예: 13">
-    <label>동</label><input id="dong" placeholder="예: 101">
-    <label>호</label><input id="ho" placeholder="예: 303">
-    <button onclick="submitRequest()">📄 조회하기</button>
-  </div>
+  function safeParse(raw){
+    let str = decodeURIComponent(raw.trim());
+    if(str.startsWith('"') && str.endsWith('"')) str = str.slice(1,-1);
+    return JSON.parse(str);
+  }
 
-  <!-- 🖨️ 결과 -->
-  <div id="result"></div>
+  function renderPretty(json){
+    const list = json?.data?.resRegisterEntriesList?.[0]?.resRegistrationHisList || [];
+    let html='';
 
-  <script>
-    async function submitRequest() {
-      const v = id => document.getElementById(id).value.trim();
-      const box = document.getElementById('result');
-      box.innerHTML = '<p class="loading">⏳ 조회 중…</p>';
-    
-      const body = {
-        ...FIXED,
-        addr_sido: v('addr_sido'),
-        addr_sigungu: v('addr_sigungu'),
-        addr_roadName: v('addr_roadName'),
-        addr_buildingNumber: v('addr_buildingNumber'),
-        dong: v('dong'),
-        ho: v('ho')
-      };
-    
-      try {
-        const res = await fetch(API_ENDPOINT, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
+    if (!list.length) html += '<p class="error">데이터가 없습니다</p>';
+    else {
+      list.forEach(sec=>{
+        const title = clean(sec.resType||'');
+        const sub   = clean(sec.resType1||'');
+        html += `<details class="card" open>
+                   <summary>${title}${sub?' – '+sub:''}</summary><ul>`;
+        (sec.resContentsList||[]).forEach(g=>{
+          (g.resDetailList||[]).forEach(d=>{
+            if(d.resNumber==='0') return;
+            html += `<li>${clean(d.resContents).replace(/\n/g,'<br/>')}</li>`;
+          });
         });
-    
-        const result = await res.json();
-    
-        if (result?.pdfBase64) {
-          // Base64 → Blob → ObjectURL
-          const byteCharacters = atob(result.pdfBase64);
-          const byteNumbers = new Array(byteCharacters.length);
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-          }
-          const byteArray = new Uint8Array(byteNumbers);
-          const blob = new Blob([byteArray], { type: 'application/pdf' });
-          const blobUrl = URL.createObjectURL(blob);
-    
-          box.innerHTML = `
-            <p>📄 등기부등본 원문(PDF)이 준비되었습니다.</p>
-            <a href="${blobUrl}" target="_blank" class="btn">🔍 새 창으로 열기</a>
-            <a href="${blobUrl}" download="등기부등본.pdf" class="btn">📥 PDF 다운로드</a>
-          `;
-        } else {
-          box.innerHTML = `<p class="error">🚨 PDF 데이터가 없습니다.</p>`;
-        }
-    
-      } catch (e) {
-        box.innerHTML = `<p class="error">🚨 네트워크 오류: ${e.message}</p>`;
-      }
+        html += '</ul></details>';
+      });
     }
-    </script>
-    
-    
-</body>
-</html>
+
+    // ✅ PDF 다운로드 영역 추가
+    if (json?.pdfBase64 && json?.fileName) {
+      html += `
+        <div class="card">
+          <h4>📄 등기부등본 원문 PDF</h4>
+          <a href="${json.downloadUrl}" target="_blank" style="margin-right:10px;">
+            🔍 새 창으로 보기
+          </a>
+          <a href="${json.downloadUrl}" download>
+            ⬇️ 다운로드
+          </a>
+        </div>
+      `;
+    }
+
+    return html;
+  }
+
+  async function submitRequest(){
+    const v=id=>document.getElementById(id).value.trim();
+    const resBox=document.getElementById('result');
+    resBox.innerHTML='<p class="loading">⏳ 조회 중…</p>';
+
+    const body={...FIXED,
+      addr_sido:v('addr_sido'),addr_sigungu:v('addr_sigungu'),
+      addr_roadName:v('addr_roadName'),addr_buildingNumber:v('addr_buildingNumber'),
+      dong:v('dong'),ho:v('ho')
+    };
+
+    try{
+      const res  = await fetch(API_ENDPOINT,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(body)
+      });
+      const raw  = await res.text();
+      const json = safeParse(raw);
+      resBox.innerHTML = renderPretty(json);
+
+    }catch(e){
+      resBox.innerHTML = `<p class="error">🚨 오류: ${e.message}</p>`;
+    }
+  }
+</script>
