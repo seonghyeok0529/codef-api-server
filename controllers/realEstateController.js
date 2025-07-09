@@ -30,7 +30,7 @@ exports.requestRegisterStatus = async (req, res) => {
       password: encPassword,
       ePrepayNo: ePrepayNo,
       ePrepayPass: encPrepayPass,
-      issueType: '0',
+      issueType: '0',         // ✅ PDF 열람용 설정 (발급은 '0')
       originDataYN: '1',
 
       // 주소·조회 옵션 그대로 전달
@@ -54,16 +54,18 @@ exports.requestRegisterStatus = async (req, res) => {
     try {
       const raw = typeof response.data === 'string' ? response.data.trim() : response.data;
 
-      // 1) 디코드 URI (예: %7B...%7D 형식)
-      const decoded = decodeURIComponent(raw);
+      let decoded = raw;
+      try {
+        decoded = decodeURIComponent(raw);
+      } catch (err) {
+        console.warn('[DECODE WARNING] decodeURIComponent 실패, 원본 사용');
+      }
 
-      // 2) 따옴표 감싸는 경우 제거
       let cleaned = decoded;
       while (cleaned.startsWith('"') && cleaned.endsWith('"')) {
         cleaned = cleaned.slice(1, -1);
       }
 
-      // 3) JSON 파싱
       parsedData = JSON.parse(cleaned);
     } catch (err) {
       console.error('[PARSE ERROR]', err.message);
@@ -73,13 +75,23 @@ exports.requestRegisterStatus = async (req, res) => {
       });
     }
 
-    console.log('[CODEF SUCCESS]', JSON.stringify(parsedData, null, 2));
+    console.log('[CODEF SUCCESS]', {
+      resultCode: parsedData?.result?.code || null,
+      resIssueYN: parsedData?.data?.resIssueYN || null,
+      hasPdf: !!parsedData?.data?.resOriGinalData
+    });
 
-    // ✅ pdfBase64 포함해서 응답
-    if (parsedData.pdfFileData) {
+    // ✅ PDF Base64 포함 응답 (조건: 발급 성공 + PDF 존재)
+    const pdfBase64 = parsedData?.data?.resOriGinalData;
+    const resIssueYN = parsedData?.data?.resIssueYN;
+
+    if (resIssueYN === '1' && pdfBase64) {
+      const fileName = `${Date.now()}_register.pdf`;
       return res.json({
         ...parsedData,
-        pdfBase64: parsedData.pdfFileData
+        pdfBase64,
+        fileName,
+        downloadUrl: `/download/base64?fileName=${encodeURIComponent(fileName)}&base64=${encodeURIComponent(pdfBase64)}`
       });
     } else {
       return res.json(parsedData);
@@ -92,5 +104,22 @@ exports.requestRegisterStatus = async (req, res) => {
     }
     console.error('[LOCAL ERROR]', err.message);
     return res.status(500).json({ code: 'LOCAL-500', message: err.message });
+  }
+};
+
+// ✅ base64 → PDF 다운로드 endpoint
+exports.downloadPdfFromBase64 = async (req, res) => {
+  try {
+    const { base64, fileName } = req.query;
+    if (!base64 || !fileName) {
+      return res.status(400).json({ error: 'fileName과 base64가 필요합니다.' });
+    }
+
+    const buffer = Buffer.from(base64, 'base64');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Type', 'application/pdf');
+    return res.send(buffer);
+  } catch (err) {
+    return res.status(500).json({ error: 'PDF 다운로드 실패: ' + err.message });
   }
 };
