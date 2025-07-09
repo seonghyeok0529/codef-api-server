@@ -30,7 +30,7 @@ exports.requestRegisterStatus = async (req, res) => {
       password: encPassword,
       ePrepayNo: ePrepayNo,
       ePrepayPass: encPrepayPass,
-      issueType: '1',
+      issueType: '0',
       originDataYN: '1',
 
       // 주소·조회 옵션 그대로 전달
